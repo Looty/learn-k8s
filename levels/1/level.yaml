@@ -1,0 +1,5 @@
+name: Bad image
+checks:
+  - name: containerStatus
+    cmd: k get pods/nginx -o=jsonpath='{.status.containerStatuses[0].ready}'
+    value: true
