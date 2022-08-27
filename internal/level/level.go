@@ -1,13 +1,20 @@
 package level
 
+import (
+	"github.com/google/uuid"
+)
+
 type Level struct {
-	Name   string  `yaml:"name"`
-	Checks []Check `yaml:"checks"`
+	Id            uuid.UUID
+	Name          string `yaml:"name"`
+	ResourcesPath string
+	Active        bool    `default:"false"`
+	Checks        []Check `yaml:"checks"`
 }
 
 type Check struct {
 	Name   string `yaml:"name"`
 	Cmd    string `yaml:"cmd"`
 	Value  string `yaml:"value"`
-	Status bool   `yaml:"status" default:"true"`
+	Passed bool   `yaml:"status" default:"false"`
 }

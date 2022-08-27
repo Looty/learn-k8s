@@ -5,5 +5,6 @@ type Config struct {
 }
 
 type Server struct {
-	Port int
+	Port      int
+	ClusterUp bool
 }
