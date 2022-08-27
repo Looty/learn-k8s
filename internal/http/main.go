@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 	"log"
@@ -10,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	config "learn-k8s/internal/config"
 	level "learn-k8s/internal/level"
@@ -27,24 +30,77 @@ func main() {
 	LoadConfig()
 	LoadLevels()
 
-	r.GET("/", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "index.tmpl", gin.H{
-			"Title":  "Main website",
-			"Levels": levels,
-		})
-	})
+	r.GET("/", indexHandler)
+	r.POST("/activateLevel", activateLevelHandler)
 
-	cmd := exec.Command("kubectl", "get", "pods")
+	r.Run(fmt.Sprintf(":%d", configuration.Server.Port))
+}
+
+func runClusterCommand(command string) string {
+	args := strings.Fields(command)
+	cmd := exec.Command(args[0], args[1:]...)
 	output, err := cmd.CombinedOutput()
 
 	if err != nil {
 		fmt.Println(fmt.Sprint(err) + ": " + string(output))
 	}
 
-	fmt.Print(string(output))
+	return string(output)
+}
 
-	ginPort := configuration.Server.Port
-	r.Run(fmt.Sprintf(":%d", ginPort))
+func indexHandler(c *gin.Context) {
+	checkKubernetesClusterStatus()
+
+	fmt.Printf("--- l:%+v\n", levels[0])
+
+	c.HTML(http.StatusOK, "index.tmpl", gin.H{
+		"Levels": levels,
+		"Config": configuration,
+	})
+}
+
+func activateLevelHandler(c *gin.Context) {
+	levelId := c.PostForm("levelId")
+
+	l, err := getLevelById(levelId)
+	if err != nil {
+		strMessage := "No level was found at: " + levelId
+		errors.New(strMessage)
+	}
+
+	fmt.Println(&l)
+
+	l.Active = true //TODO: set value
+	var output = applyLevelResources(l.ResourcesPath)
+
+	c.HTML(http.StatusOK, "applyOutput.tmpl", gin.H{
+		"Output": output,
+	})
+}
+
+func getLevelById(Id string) (*level.Level, error) {
+	for _, level := range levels {
+		if level.Id.String() == Id {
+			return &level, nil
+		}
+	}
+
+	return nil, errors.New("Level was not found")
+}
+
+func checkKubernetesClusterStatus() {
+	output := runClusterCommand("kubectl cluster-info")
+	if strings.Contains(output, "is running at") {
+		configuration.Server.ClusterUp = true
+	} else {
+		configuration.Server.ClusterUp = false
+	}
+}
+
+func applyLevelResources(path string) string {
+	output := runClusterCommand("kubectl apply -f " + path + " --recursive")
+
+	return output
 }
 
 func LoadConfig() {
@@ -65,6 +121,7 @@ func LoadConfig() {
 
 func LoadLevels() {
 	path, err := os.Getwd()
+
 	if err != nil {
 		log.Println(err)
 	}
@@ -85,6 +142,8 @@ func LoadLevels() {
 		}
 
 		var l level.Level
+		l.Id = uuid.New()
+		l.ResourcesPath = filepath.Dir(matches[p]) + "/resources/"
 
 		err = yaml.Unmarshal(f, &l)
 		levels = append(levels, l)

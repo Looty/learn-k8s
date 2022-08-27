@@ -1,6 +1,6 @@
 <html>
     <head>
-        <title>{{ .Title }}</title>
+        <title>Main website</title>
         <style>
             .tb { border-collapse: collapse; }
             .tb th, .tb td { padding: 5px; border: solid 1px #777; }
@@ -8,17 +8,32 @@
         </style>
     </head>
     <body>
+        {{ if .Config.Server.ClusterUp }}
+            <p>Cluster is online!</p>
+        {{ else }}
+            <p>Cluster is offline!</p>
+        {{ end }}
         <table class="tb">
             <tr>
                 <th>Name</th>
                 <th>Check Name</th>
-                <th>Status Check</th>
+                <th>Passed</th>
+                <th>Active</th>
             </tr>
             {{ range .Levels }}
                 <tr>
                     <td rowspan = len(.Checks)>{{ .Name }}</td>
                     <td>{{ (index .Checks 0).Name }}</td>
-                    <td>{{ (index .Checks 0).Status }}</td>
+                    <td>{{ (index .Checks 0).Passed }}</td>
+                    {{ if not .Active }}
+                        <td>
+                            <form action="/activateLevel" method="post">
+                                <button name="levelId" value="{{ .Id }}">Activate</button>
+                            </form>
+                        </td>
+                    {{ else }}
+                        <td>{{ (index .Checks 0).Active }}</td>
+                    {{ end }}
                 </tr>
                 {{ if ge (len .Checks) 1 }}
                     {{ range $i, $c := .Checks }}
@@ -26,7 +41,7 @@
                             <tr>
                                 <td>
                                     <td>{{ .Name }}</td>
-                                    <td>{{ .Status }}</td>
+                                    <td>{{ .Passed }}</td>
                                 </td>
                             </tr>
                         {{ end }}
